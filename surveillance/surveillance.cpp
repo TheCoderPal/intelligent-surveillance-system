@@ -1,14 +1,13 @@
 #include "surveillance.h"
 
-using namespace std;
-
 BackgroundSubtractorMOG2 mog;
 int gAlarm = 0;
 int timestamp_last = clock();
 int timestamp_now;
 int first_time = 1;
+int tracking = 0;
 
-void runSurveillance(const Mat &original_image, Mat &background_image, Mat &foreground_image, Mat &print_screen_image, Mat &marked_image, int reset) {
+void runSurveillance(const Mat &original_image, Mat &background_image, Mat &foreground_image, Mat &print_screen_image, Mat &marked_image, list<TrackedObject> &tracked_object_list, int reset = 0, int track_start = 0) {
 	Mat temp_image;
 	Mat resized_image;
 
@@ -18,8 +17,10 @@ void runSurveillance(const Mat &original_image, Mat &background_image, Mat &fore
 	}
 	marked_image = resized_image.clone();
 
-	if (reset)
+	if (reset) {
 		mog = BackgroundSubtractorMOG2();
+		tracking = 0;
+	}
 
 	mog(resized_image, foreground_image, 5e-4);
 	mog.getBackgroundImage(background_image);
@@ -30,11 +31,14 @@ void runSurveillance(const Mat &original_image, Mat &background_image, Mat &fore
 	gAlarm = 0;
 	vector<Object> object_list;
 	getObjects(foreground_image, temp_image, object_list);
-	int* object_label = new int[object_list.size()];
-	gAlarm = classifyObjects(resized_image, object_list, object_label);
+	//int* object_label = new int[object_list.size()];
+	//gAlarm = classifyObjects(resized_image, object_list, object_label);
+
+	gAlarm = trackObjects(resized_image, object_list, tracked_object_list);
 
 
-	Scalar rectangle_color;
+
+/*	Scalar rectangle_color;
 	for (int i = 0; i < object_list.size(); i++) {
 		switch (object_label[i]) {
 		case LABEL_PEDESTRIAN:
@@ -49,6 +53,8 @@ void runSurveillance(const Mat &original_image, Mat &background_image, Mat &fore
 		}
 		rectangle(marked_image, object_list[i].point_bottom_left, object_list[i].point_top_right, rectangle_color);
 	}
+*/
+	//delete []object_label;
 
 	timestamp_now = clock();
 	if (!gAlarm)
@@ -112,10 +118,58 @@ int getObjects(const Mat &original_foreground, const Mat &foreground, vector<Obj
 	return num_objects;
 }
 
+int trackObjects(const Mat &frame, const vector<Object> &object_list, list<TrackedObject> &tracked_object_list) {
+	int gAlarm = 0;
+	int *mark = new int[object_list.size()];
+	memset(mark, 255, sizeof(int) * object_list.size());
+
+	for (list<TrackedObject>::iterator i = tracked_object_list.begin(); i != tracked_object_list.end();) {
+		double max_similarity = 0;
+		int l = -1;
+
+		Mat prediction = (*i).kalman_filter.predict();
+		int cx = cvRound(prediction.at<float>(0));
+		int cy = cvRound(prediction.at<float>(1));
+		float vx = prediction.at<float>(2);
+		float vy = prediction.at<float>(3);
+		int width = cvRound(prediction.at<float>(4));
+		int height = cvRound(prediction.at<float>(5));
+
+		Object obj_prediction(cx, cy, width, height);
+
+		for (int j = 0; j < (int)object_list.size(); j++) {
+			float similarity = obj_prediction.compare(object_list[j]);
+			if (similarity > 0.5 && similarity > max_similarity) {
+				max_similarity = similarity;
+				l = j;
+			}
+		}
+
+		if (l == -1) {
+			i = tracked_object_list.erase(i);
+		}
+		else {
+			mark[l] = (*i).color_int;
+			(*i).correct(object_list[l]);
+			if ((float)((*i).point_top_right.y - (*i).point_bottom_left.y) / ((*i).point_top_right.x - (*i).point_bottom_left.x))
+				gAlarm = 1;
+			i++;
+		}
+	}
+
+	for (int i = 0; i < (int)object_list.size(); i++)
+		if (mark[i] < 0) {
+			tracked_object_list.push_back(object_list[i]);
+		}
+	delete []mark;
+
+	return gAlarm;
+}
+
 int classifyObjects(const Mat &frame, const vector<Object> &object_list, int* &object_label) {
 	memset(object_label, LABEL_OTHER, sizeof(int) * object_list.size());
 	int gAlarm = 0;
-	for (int i = 0; i < object_list.size(); i++) {
+	for (int i = 0; i < (int)object_list.size(); i++) {
 		const Object &temp_object = object_list[i];
 		/*if (temp_object.white.size() < 50) {
 			object_label[i] = LABEL_OTHER;
