@@ -8,6 +8,7 @@ int first_time = 1;
 int tracking = 0;
 
 void runSurveillance(const Mat &original_image, Mat &background_image, Mat &foreground_image, Mat &print_screen_image, Mat &marked_image, list<TrackedObject> &tracked_object_list, int reset = 0, int track_start = 0) {
+	srand(time(NULL));
 	Mat temp_image;
 	Mat resized_image;
 
@@ -36,7 +37,9 @@ void runSurveillance(const Mat &original_image, Mat &background_image, Mat &fore
 
 	gAlarm = trackObjects(resized_image, object_list, tracked_object_list);
 
-
+	for (list<TrackedObject>::iterator i = tracked_object_list.begin(); i != tracked_object_list.end(); i++) {
+		rectangle(marked_image, (*i).point_bottom_left, (*i).point_top_right, (*i).color_scalar);
+	}
 
 /*	Scalar rectangle_color;
 	for (int i = 0; i < object_list.size(); i++) {
