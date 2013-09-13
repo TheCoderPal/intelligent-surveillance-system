@@ -87,8 +87,7 @@ struct TrackedObject : public Object {
 
 			kalman_filter.statePost = state;
 
-			RNG rng;
-			color_scalar = Scalar(rng(256), rng(256), rng(256));
+			color_scalar = Scalar((unsigned char)rand()%256, (unsigned char)rand()%256, (unsigned char)rand()%256);
 			color_int = ((int)color_scalar[0] << 16) + ((int)color_scalar[1] << 8) + (int)color_scalar[2];
 	}
 
