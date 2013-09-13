@@ -22,14 +22,16 @@ int main() {
 	Mat foreground;
 	Mat background;
 	Mat marked;
+	list<TrackedObject> tracked_object_list;
 
 	int reset = 0;
+	int track_start = 0;
 
 	//while (_frame = cvQueryFrame(capture), _frame != 0) {
 	//	frame = Mat(_frame, false);
 	while (cap.read(frame)) {
 
-		runSurveillance(frame, background, foreground, print_screen, marked, reset);
+		runSurveillance(frame, background, foreground, print_screen, marked, tracked_object_list, reset, track_start);
 		reset = 0;
 
 		imshow("frame", frame);
@@ -43,6 +45,10 @@ int main() {
 		case 's':
 		case 'S':
 			reset = 1;
+			break;
+		case 't':
+		case 'T':
+			track_start = 1;
 			break;
 		case 'q':
 		case 'Q':
